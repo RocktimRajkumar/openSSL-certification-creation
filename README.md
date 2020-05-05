@@ -1,13 +1,69 @@
-# Create OpenSSL certificate in ubuntu system
+# OpenSSL Certification Authority (CA) on Ubuntu Server
 
-> Make sure your `date`, `time` is **sync**
+OpenSSL is a free, open-source library that you can use for digital certificates. One of the things you can do is build your own CA (Certificate Authority).
+
+A CA is an entity that signs digital certificates. An example of a well-known CA is `Verisign`. Many websites on the Internet use certificates for their HTTPS connections that were signed by `Verisign`.
+
+Besides websites and HTTPS, there are some other applications/services that can use digital certificates. For example:
+
+- VPNs: instead of using a pre-shared key you can use digital certificates for authentication.
+- Wireless: WPA 2 enterprise uses digital certificates for client authentication and/or server authentication using PEAP or EAP-TLS.
+
+Instead of paying companies like Verisign for all your digital certificates. It can be useful to build your own CA for some of your applications. In this lesson, you will learn how to create your own CA.
+
+## Prerequisites
+ - Ubuntu OS
+ - Before we configure OpenSSL, I like to configure the hostname/FQDN correctly and make sure that our time, date and timezone is correct.
+
+    Let’s take a look at the hostname:
+
+    ```
+    $ hostname
+    rock
+    ```
+
+    My hostname is `rock`. Let’s check the FQDN:
+
+    ```
+    $ hostname -f
+    rock
+    ```
+
+    It’s also `rock`. Let’s change the FQDN; you need to edit the following file for this:
+    ```
+    $ sudo vim /etc/hosts 
+    ```
+    Change the following line:
+    ```
+    127.0.1.1       rock
+    ```
+    To:
+    
+    ```
+    127.0.1.1       rock.mywebsite.local rock
+    ```
+    Let’s verify the hostname and FQDN again:
+    
+    ```
+    $ hostname
+    rock
+    ```
+    ```
+    $ hostname -f
+    rock.mywebsite.local
+    ```
+    Our hostname and FQDN is now looking good.
 
 
-## Create the folder structure
+## Root CA
+
+### Create the folder structure
+The `/root/ca` folder is where we will store our private keys and certificates.
 
 ```
 $ mkdir /root/ca
 $ cd /root/ca
+
 $ mkdir newcerts
 $ mkdir certs
 $ mkdir crl
@@ -15,45 +71,52 @@ $ mkdir private
 $ mkdir requests
 $ touch index.txt
 ```
+`certs` -> Directory contains all the certificate
+
+`requests` -> Directory contains all the requests
+
+`index.txt` -> This is where OpenSSL keeps track of all signed certificates:
+
+`private` -> This is where all the private key store
+
+**The first thing we have to do is to create a root CA. This consists of a private key and root certificate. These two items are the `identity` of our CA.**
 
 ## File to store serial number of the certificate
+Each signed certificate will have a serial number.  I will start with number `1234`:
 
-In my case first serial number of the certificate is `1234`
 ```
 $ echo '1234' > serial
 ```
 
-## Create a private key
+### Create a root private key
 
 ```
 $ openssl genrsa -aes256 -out private/cakey.pem 4096
 ```
-
-Generating a private key using openssl.
-
-`aes256` -> Encryption type
-
-Saving the private key as `cakey.pem` inside the `private` directory.
-
-4096 bit long key.
+The root private key that I generated is 4096 bit and uses AES 256 bit encryption. It is stored in the private folder using the `cakey.pem` filename.
 
 Provide the pass phrase.
 
-## Root Certificate creation
-We can use the private create above in the root certificate.
+### Root Certificate creation
+We can now use the root private key to create the root certificate:
 
 ```
 $ openssl req -new -x509 -key /root/ca/private/cakey.pem -out cacert.pem -days 3650
 ```
 **`Note :`** You have to enter the same pass phrase of `cakey.pem` while creating the private key.
 
-## Giving Permission to Root user only
-Only root and read and write to this folder.
+
+
+### Security
+
+Protecting your CA is important. Anyone that has access to the private key of the CA will be able to create trusted certificates.
+
+One of the things you should do is reducing the permissions on the entire /root/ca folder so that only our root user can access it:
 ```
 $ chmod 600 -R /root/ca
 ```
 
-## Change configuration of openssl.cnf file
+### Change configuration of openssl.cnf file
 ```
 $ sudo vim /usr/lib/ssl/openssl.cnf
 ```
@@ -69,7 +132,7 @@ crl_dir         = $dir/crl              # Where the issued crl are kept
 database        = $dir/index.txt        # database index file.
 ```
 
-You also need the change the match to value you provided while creating the root certificate, or make it optional.
+Some fields like country, state/province, and organization have to match. If you are building your CA for a lab environment like I am then you might want to change some of these values:
 
 ```
 policy          = policy_match
@@ -87,28 +150,38 @@ emailAddress            = optional
 Right now we have our working Certificate Authority. And it's ready to start signing out the certificates.
 
 
-## Creating a request for signing our certificate.
+## Create a certificate
+
+Our root CA is now up and running. Normally when you want to install a certificate on a device (a web server for example), then the device will generate a CSR (Certificate Signing Request). This CSR is created by using the private key of the device.
+
+On our CA, we can then sign the CSR and create a digital certificate for the device.
+
+Another option is that we can do everything on our CA. We can generate a private key, CSR and then sign the certificate…everything “on behalf” of the device.
+
+That’s what I am going to do in this example; it’s a good way to test if your CA is working as expected.
+
+I’ll generate a private key, CSR and certificate for an imaginary `web server`.
 
 
-Let say that we need to create a certificate for our webserver.
-
-Create a private key for the webserver.
+### Generating a private key for the webserver.
+Let’s use the requests folder for this:
 ```
 $ cd requests
 $ openssl genrsa -aes256 -out webserver.pem 2048
 ```
 
-Creating a request
+### Creating a CSR
+With the private key, we can create a CSR
 ```
 $ openssl req -new -key webserver.pem -out webserver.csr
 ```
 
-Signing the request
+### Signing the CSR
 ```
 $ openssl ca -in webserver.csr -out webserver.crt
 ```
 
-## Moving the file the correct folder
+### Moving the file the correct folder
 ```
 $ mv webserver.crt /root/ca/certs/
 $ mv webserver.pem /root/ca/private/
