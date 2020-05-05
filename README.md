@@ -186,3 +186,32 @@ $ openssl ca -in webserver.csr -out webserver.crt
 $ mv webserver.crt /root/ca/certs/
 $ mv webserver.pem /root/ca/private/
 ```
+
+## Verification
+Here’s the index.txt file:
+
+```
+# cat /root/ca/index.txt
+V       170401090859Z           1234    unknown /C=NL/ST=North-Brabant/O=Networklessons/CN=some_server.networklessons.local/emailAddress=admin@networklessons.local
+```
+Above you can see the certificate that we created for our web server. It also shows the serial number that I stored in the serial file. The next certificate that we sign will get another number:
+
+```
+# cat /root/ca/serial
+1235
+```
+
+**`Note :`** Windows doesn’t recognize the **.PEM** file extension so you might want to rename your certificates to **.CRT**.
+
+Rename the `cacert.pem` to `cacert.crt` and run it on windows machine.
+
+Initally it will show not trusted, once installed installed it will be fix.
+
+While installing please select certification store as `Trusted Root Certification Authorities`.
+
+Windows will give you one more big security warning, click Yes to continue.
+
+The root certificate is now installed and trusted. Now open the certificate that we assigned to `webserver`, i.e `webserver.crt`
+
+You can see that it was issued by our root CA, it’s valid for one year. When you look at the certification path then you can see that Windows trusts the certificate.
+
